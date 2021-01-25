@@ -19,5 +19,14 @@ MACTSE3LOW="0x00"
 
 ##############
 
-devmem2
+gateway_ctrl_reg="0x60005000"
+
+#Stop gateway
+devmem2 $gateway_ctrl_reg 0
+
+#Configure TSE macs
+devmem2 $(($gateway_ctrl_reg+4)) MACTSE2LOW
+devmem2 $(($gateway_ctrl_reg+8)) MACTSE2UP
+devmem2 $(($gateway_ctrl_reg+12)) MACTSE3LOW
+devmem2 $(($gateway_ctrl_reg+16)) MACTSE3UP
 
