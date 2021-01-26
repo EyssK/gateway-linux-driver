@@ -2,7 +2,6 @@ SUMMARY = "Gateway driver as a script"
 LICENSE = "CLOSED"
 
 SRC_URI = "file://gateway.sh \
-           file://Makefile \
            file://gateway.c \
           "
 

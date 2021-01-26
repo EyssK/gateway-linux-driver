@@ -1,32 +1,57 @@
 #!/bin/bash
+set -o pipefail
+set -u
+set -e
 
-make_ip () {
-    let IP=$(($1<<24))+$(($2<<16))+$(($3<<8))+$4
-    printf "0x%x" $IP
-}
+insmod  coretse.ko
 
-IP1=$(make_ip 192 168 1 1)
-IP2=$(make_ip 192 168 1 2)
+sleep 1s
 
-MACUP="0x0102"
-MACLOW="0x03040506"
+# activate forwarding
+echo 1 > /proc/sys/net/ipv4/ip_forward
 
-MACTSE2UP="0x00"
-MACTSE2LOW="0x00"
+IP_0="192.168.2.1"
+IP_1="192.168.3.1"
+FAKE_0="192.168.4.1"
+FAKE_1="192.168.5.1"
+MACTSE1="58:34:12:00:FC:01"
+MACTSE0="58:34:12:00:FC:00"
+TSE0="eth2"
+TSE1="eth3"
 
-MACTSE3UP="0x00"
-MACTSE3LOW="0x00"
+ifconfig $TSE0 $IP_0
+ifconfig $TSE1 $IP_1
 
-##############
+# Gateway configuration
+# each line adds an IP/MAC in the gateway's whitelist
+echo "$IP_0 $MACTSE0" >  gateway.cfg
+echo "$IP_1 $MACTSE1" >> gateway.cfg
+echo "$FAKE_0 $MACTSE0" >> gateway.cfg
+echo "$FAKE_1 $MACTSE1" >> gateway.cfg
+./gateway_mmap
 
-gateway_ctrl_reg="0x60005000"
+# arping dosen't pass the gateway
+arp -i $TSE0 -s $IP_1 $MACTSE1
+arp -i $TSE0 -s $FAKE_0 $MACTSE1
+arp -i $TSE0 -s $FAKE_1 $MACTSE1
+arp -i $TSE1 -s $IP_0 $MACTSE0
+arp -i $TSE1 -s $FAKE_0 $MACTSE0
+arp -i $TSE1 -s $FAKE_1 $MACTSE0
 
-#Stop gateway
-devmem2 $gateway_ctrl_reg 0
+# flush table
+iptables -F
+iptables -t nat -F
 
-#Configure TSE macs
-devmem2 $(($gateway_ctrl_reg+4)) MACTSE2LOW
-devmem2 $(($gateway_ctrl_reg+8)) MACTSE2UP
-devmem2 $(($gateway_ctrl_reg+12)) MACTSE3LOW
-devmem2 $(($gateway_ctrl_reg+16)) MACTSE3UP
+iptables -t nat -A POSTROUTING -d $FAKE_1 -j SNAT --to-source $FAKE_0
+#iptables -t nat -I POSTROUTING -d $FAKE_1 -j LOG --log-prefix "postrouting $FAKE_1 "
+iptables -t nat -A POSTROUTING -d $FAKE_0 -j SNAT --to-source $FAKE_1
+#iptables -t nat -I POSTROUTING -d $FAKE_0 -j LOG --log-prefix "postrouting $FAKE_0 "
 
+iptables -t nat -A PREROUTING -d $FAKE_1 -j DNAT --to-destination $IP_1
+#iptables -t nat -I PREROUTING -d $FAKE_1 -j LOG --log-prefix "prerouting $FAKE_1 "
+iptables -t nat -A PREROUTING -d $FAKE_0 -j DNAT --to-destination $IP_0
+#iptables -t nat -I PREROUTING -d $FAKE_0 -j LOG  --log-prefix "prerouting $FAKE_0 "
+
+# we need to tell where to send FAKE IPs
+route add $FAKE_1 dev $TSE0
+route add $FAKE_0 dev $TSE1
