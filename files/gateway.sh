@@ -52,5 +52,9 @@ iptables -t nat -A PREROUTING -d $FAKE_0 -j DNAT --to-destination $IP_0
 #iptables -t nat -I PREROUTING -d $FAKE_0 -j LOG  --log-prefix "prerouting $FAKE_0 "
 
 # we need to tell where to send FAKE IPs
+route del $FAKE_0
+route del $FAKE_1
+#route add $FAKE_1 gw $IP_0
+#route add $FAKE_0 gw $IP_1
 route add $FAKE_1 dev $TSE0
 route add $FAKE_0 dev $TSE1
