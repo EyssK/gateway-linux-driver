@@ -1,7 +1,6 @@
 #!/bin/bash
 set -o pipefail
 set -u
-set -e
 
 insmod  coretse.ko
 
